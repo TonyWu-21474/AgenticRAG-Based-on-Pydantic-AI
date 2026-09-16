@@ -1,6 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
+
+from pydantic_ai import RunContext
+from pydantic_ai.messages import (
+    AgentStreamEvent,
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    ThinkingPart,
+    ThinkingPartDelta,
+)
 
 from .agent import RagDeps, agent
 from .config import Settings
@@ -50,6 +61,30 @@ def tools_used(result) -> list[str]:
     return names
 
 
+async def echo_thinking(ctx: RunContext[RagDeps], events: AsyncIterator[AgentStreamEvent]) -> None:
+    """Print the model's chain of thought as it streams, one block per model request."""
+    open_block = False
+    async for event in events:
+        if isinstance(event, PartStartEvent) and isinstance(event.part, ThinkingPart):
+            if open_block:
+                print(flush=True)
+            print("thinking> ", end="", flush=True)
+            open_block = True
+            if event.part.content:
+                print(event.part.content, end="", flush=True)
+        elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, ThinkingPartDelta):
+            if not open_block:
+                print("thinking> ", end="", flush=True)
+                open_block = True
+            if event.delta.content_delta:
+                print(event.delta.content_delta, end="", flush=True)
+        elif isinstance(event, PartEndEvent) and isinstance(event.part, ThinkingPart):
+            print(flush=True)
+            open_block = False
+    if open_block:
+        print(flush=True)
+
+
 async def main() -> None:
     settings = Settings.from_env()
     deps = await build_deps(settings)
@@ -65,8 +100,13 @@ async def main() -> None:
             break
         if not question or question.lower() in {"exit", "quit"}:
             break
-        result = await agent.run(question, deps=deps, message_history=history)
-        history = result.all_messages()
+        result = await agent.run(
+            question,
+            deps=deps,
+            message_history=history,
+            event_stream_handler=echo_thinking,
+        )
+        history = result.new_messages()
         used = tools_used(result)
         if used:
             print(f"[tools: {', '.join(used)}]")

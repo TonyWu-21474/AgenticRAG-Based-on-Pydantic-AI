@@ -56,6 +56,14 @@ To use hosted models instead, set `RAG_MODEL=openai:gpt-4o-mini`,
 .\.venv\Scripts\python.exe -m agentic_rag.cli
 ```
 
+Each turn prints the model's chain of thought as it streams, one `thinking> ...`
+block per model request, and then the final answer as `agent> ...`, along with the
+tool calls the run made. Ollama returns the reasoning trace in the `reasoning`
+field for thinking models such as `qwen3:4b`; Pydantic AI maps that to a
+`ThinkingPart`, and the CLI forwards those parts to the terminal while the model
+is still generating. A model without the `thinking` capability simply produces no
+`thinking>` block.
+
 The index is built on first run and reused afterwards. Put documents in
 `data/corpus/`, then rebuild after editing them:
 

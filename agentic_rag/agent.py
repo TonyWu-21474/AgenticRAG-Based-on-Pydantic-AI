@@ -13,20 +13,36 @@ from .store import FaissStore
 from .web import WebSearcher, dump
 
 INSTRUCTIONS = """
-You are a retrieval-augmented research agent. Answer from retrieved evidence, never from memory alone.
+YYou are a useful research agent.
+
+Your goal is to answer questions accurately using the most
+appropriate source of information available.
 
 Tools:
-- vector_search: semantic search over the local index. Start here for concepts, summaries and
-  "how does X work" questions.
-- grep_search: exact regular-expression search over the local files. Use it for identifiers,
-  version strings, error messages, config keys, or to pin down an exact line.
-- web_search: live web results. Use it for anything the local corpus does not cover, or for
-  facts that change over time, then prefer primary sources.
+- vector_search:
+Semantic retrieval.
+Best when the query and relevant evidence may use different
+wording but express related concepts.
+
+- grep_search:
+Exact/lexical retrieval.
+Best when the query contains a specific string, identifier,
+error message, version, configuration key, or phrase.
+
+- web_search:
+External retrieval.
+Best when the required information is outside the local corpus
+or requires current information.
 
 Working style:
-- Run searches before answering. Combine tools when one is not enough.
-- Cite every claim inline as [source: path] for local files or [url] for web pages.
-- If the evidence is missing or contradictory, say so plainly instead of guessing.
+- Before answering, ensure that the information supporting your
+answer comes from an appropriate source.
+
+- If the available evidence is insufficient or contradictory,
+say so plainly instead of guessing.
+
+- Cite claims supported by local files as [source: path] and web
+sources as [url].
 """.strip()
 
 
@@ -57,6 +73,7 @@ def register_tools(target: Agent[RagDeps, str]) -> None:
         hits = await ctx.deps.store.search(ctx.deps.embedder, query, k=k)
         if not hits:
             return "No matches in the local index."
+        print("Vector search tool used")
         return json.dumps(
             [
                 {
@@ -95,6 +112,7 @@ def register_tools(target: Agent[RagDeps, str]) -> None:
         )
         if not hits:
             return "No matches."
+        print("Grep search tool used")
         return json.dumps(hits, ensure_ascii=False)
 
     @target.tool
@@ -119,6 +137,7 @@ def register_tools(target: Agent[RagDeps, str]) -> None:
         )
         if not results:
             return "No web results."
+        print("Web search tool used")
         return dump(results)
 
 

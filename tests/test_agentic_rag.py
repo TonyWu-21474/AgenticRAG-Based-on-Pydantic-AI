@@ -217,6 +217,50 @@ def test_vector_search_tool_returns_citable_json(corpus: Corpus) -> None:
     assert isinstance(payload[0]["score"], float)
 
 
+def test_echo_thinking_prints_reasoning_but_not_the_answer(capsys) -> None:
+    import asyncio
+
+    from pydantic_ai.messages import (
+        PartDeltaEvent,
+        PartEndEvent,
+        PartStartEvent,
+        TextPart,
+        ThinkingPart,
+        ThinkingPartDelta,
+    )
+
+    from agentic_rag.cli import echo_thinking
+
+    async def events():
+        yield PartStartEvent(index=0, part=ThinkingPart(content="Check the index"))
+        yield PartDeltaEvent(index=0, delta=ThinkingPartDelta(content_delta=" class first."))
+        yield PartEndEvent(index=0, part=ThinkingPart(content="Check the index class first."))
+        yield PartStartEvent(index=1, part=TextPart(content="It is IndexFlatIP."))
+        yield PartEndEvent(index=1, part=TextPart(content="It is IndexFlatIP."))
+
+    asyncio.run(echo_thinking(None, events()))
+    out = capsys.readouterr().out
+
+    assert "thinking> Check the index class first." in out
+    assert "IndexFlatIP" not in out
+
+
+def test_echo_thinking_stays_silent_without_thinking_parts(capsys) -> None:
+    import asyncio
+
+    from pydantic_ai.messages import PartEndEvent, PartStartEvent, TextPart
+
+    from agentic_rag.cli import echo_thinking
+
+    async def events():
+        yield PartStartEvent(index=0, part=TextPart(content="Answer only."))
+        yield PartEndEvent(index=0, part=TextPart(content="Answer only."))
+
+    asyncio.run(echo_thinking(None, events()))
+
+    assert capsys.readouterr().out == ""
+
+
 def test_html_to_text_strips_markup_scripts_and_styles() -> None:
     from agentic_rag.web import html_to_text
 
